@@ -6,7 +6,7 @@ import LogManager from "./manager/LogManager";
 import ResManager from "./manager/ResManager";
 import SceneManager from "./manager/SceneManager";
 import UIManager from "./manager/UIManager";
-import HttpClient from "./newwork/HttpClient";
+import HttpClient, { HTTP_CONTENT_TYPE } from "./newwork/HttpClient";
 
 /**
  * 游戏统一调度 Game Framework Module
@@ -101,6 +101,17 @@ export class GFM {
     //   await Game.AssetManager.reloadGameBundle();
     // }
 
+    // 初始启动
+    async setup() {
+        await this.ResMgr.setup();
+        await this.DataMgr.setup();
+        await this.AudioMgr.setup();
+        await this.HttpMgr.setup();
+        await this.EventMgr.setup();
+        await this.LogMgr.setup();
+        await this.SceneMgr.setup();
+        await this.UIMgr.setup();
+    }
 
     public showWaiting(reason: string) {
         this.EventMgr.emit(EEventEnum.BLOCK_INPUT_SHOW, reason);
@@ -150,20 +161,20 @@ export class GFM {
     //   }
     // }
 
-    // public static async get(url: string, obj = null, waiting = true) {
+    public async get(url: string, obj = null, waiting = true) {
 
-    //     if (waiting) GFM.showWaiting("get " + url);
-    //     let response = await GFM.HttpManager.get(url, obj);
-    //     if (waiting) GFM.hideWaiting("get " + url);
-    //     return response;
-    // }
+        if (waiting) this.showWaiting("get " + url);
+        let response = await this.HttpMgr.get(url, obj);
+        if (waiting) this.hideWaiting("get " + url);
+        return response;
+    }
 
-    // public static async post(url: string, obj: Record<string, unknown>, waiting = true, contentType: HTTP_CONTENT_TYPE = HTTP_CONTENT_TYPE.FORMDATA) {
-    //     if (waiting) GFM.showWaiting("post " + url);
-    //     let response = await GFM.HttpManager.post(url, obj, contentType);
-    //     if (waiting) GFM.hideWaiting("post " + url);
-    //     return response;
-    // }
+    public async post(url: string, obj: Record<string, unknown>, waiting = true, contentType: HTTP_CONTENT_TYPE = HTTP_CONTENT_TYPE.JSON) {
+        if (waiting) this.showWaiting("post " + url);
+        let response = await this.HttpMgr.post(url, obj, contentType);
+        if (waiting) this.hideWaiting("post " + url);
+        return response;
+    }
 }
 
 

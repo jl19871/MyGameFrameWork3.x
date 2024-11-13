@@ -5,7 +5,7 @@
 export default class LogManager {
 
     public async setup() {
-        // GFM.LogMgr.log("NotifyManager setup");
+        this.log("LogManager setup");
     }
 
     /**

@@ -82,10 +82,13 @@ export class Main extends Component {
         this.updateBlockInput();
         this.blockStateLabel.node.active = GameConfig.TEST;
 
-        GFM.ResMgr.setup();
         GFM.SceneMgr.setSceneRootNode(this.sceneRootNode);
         GFM.UIMgr.setUIRootNode(this.uiRootNode);
-        GFM.SceneMgr.gotoScene(ESceneName.SCENE_LOGIN);
+
+        GFM.setup().then(() => {
+            GFM.SceneMgr.gotoScene(ESceneName.SCENE_LOGIN);
+        });
+
     }
 
 
@@ -136,7 +139,7 @@ export class Main extends Component {
     //#region 前后台切换
     private eventHide() {
         console.log("=====EVENT_HIDE");
-        // Game.AudioManager.pauseAll();
+        // GFM.AudioMgr.pauseAll();
         // Game.NotifyManager.emit(ENotifyType.EVENT_HIDE);
 
     }
