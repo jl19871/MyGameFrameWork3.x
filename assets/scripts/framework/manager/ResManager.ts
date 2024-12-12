@@ -1,160 +1,319 @@
-import { Asset, JsonAsset, Prefab, SpriteAtlas, SpriteFrame, assetManager, isValid, log, resources, sp } from "cc";
+import { Asset, AssetManager, assetManager, isValid, JsonAsset, log, path, Prefab, resources, sp, Sprite, SpriteAtlas, SpriteFrame } from "cc";
+
+interface ICachedAsset {
+    asset: Asset;   // 加载的资源对象
+    refCount: number;   // 引用技术
+    lastAccessed: number;    // 上次访问时间戳
+}
+
+export const assetTypeMap: { [key: string]: typeof Asset } = {
+    "sprite": SpriteFrame,
+    "spine": sp.SkeletonData,
+    "atlas": SpriteAtlas,
+    "json": JsonAsset,
+    "prefab": Prefab
+};
 
 /**
  * 资源管理器, 加载目录支持引用计数, 注意不可父子目录混用
- *
+ *  资源路径类型: bundleName:dir/assetName
  * @export
  * @class ResManager
  */
 export default class ResManager {
 
-    private loadedResDirMap: Map<string, number> = null;
-    private spineCache: Map<string, sp.SkeletonData> = null //存储已创建的spine
+    private _loadedAssets: Map<string, ICachedAsset> = null;
+    private _loadedBundles: Map<string, AssetManager.Bundle> = null;
+    private _expirationTime: number = 30000; // 未使用资源的过期时间（毫秒）
+    private _isReleaseImmediately: boolean = false; //是否立即释放资源
 
-    private loadedSpriteFrames: Map<string, Array<string>> = null;
-
-    public async setup() {
-        this.loadedResDirMap = new Map();
-        this.spineCache = new Map();
-        this.loadedSpriteFrames = new Map();
-        // GFM.LogMgr.log("AssetManager setup");
+    public async setup(time: number) {
+        this._loadedAssets = new Map();
+        this._loadedBundles = new Map();
+        this._expirationTime = time;
+        this._isReleaseImmediately = time <= 0;
+        GFM.LogMgr.log("AssetManager setup");
     }
 
-    public release() {
-        this.clearSpine();
-    }
     /**
-     * 加载资源, 目录数组
-     *
-     * @param paths
-     * @param [progressCallback]
-     * @returns {*}
-     * @memberof AssetManager
+     * 根据资源路径获取资源（bundleName:path）
+     * @param path 资源路径 结构为 bundleName:dir/assetName
+     * @returns 
      */
-    public async loadDirs(paths: string[], progressCallback?: (percent: number) => void): Promise<void> {
-        if (!paths || paths.length <= 0) {
-            return;
+    public get<T extends Asset>(path: string): T {
+        let url = path;
+        let index = url.indexOf(":");
+        if (index < 0) {
+            url = `resources:${path}`;
         }
-        // GFM.LogMgr.log('begin load:', paths);
-        const pathLen = paths.length;
-        for (let index = 0; index < pathLen; index++) {
-            const path = paths[index];
-            await this.loadDir(path, (percent) => {
-                percent = percent / pathLen + index / pathLen;
-                progressCallback && progressCallback(percent);
-            });
+        let asset = this._loadedAssets.get(url);
+        if (asset) {
+            return asset.asset as T;
+        }
+        else {
+            GFM.LogMgr.warn(`AssetManager.get: ${url} not loaded.  path = ${path}`);
+            return null;
         }
     }
 
     /**
-     * 加载单个目录
-     *
-     * @param path
-     * @param [progressCallback]
-     * @returns {*}
-     * @memberof AssetManager
+     * 根据路径和bundle名获取资源
+     * @param path 路径
+     * @param bundleName bundle名
+     * @returns 
      */
-    public async loadDir(path: string, progressCallback?: (percent: number) => void): Promise<void> {
-        let refNum = this.loadedResDirMap.get(path) || 0;
-        if (refNum > 0) {
-            this.loadedResDirMap.set(path, ++refNum);
-            // GFM.LogMgr.log(`AssetManager already loaded: ${path}`);
-            return;
+    public getAsset<T extends Asset>(path: string, bundleName?: string): T {
+        let key = `${bundleName || 'resources'}:${path}`;
+        const cachedAsset = this._loadedAssets.get(key);
+        return cachedAsset ? cachedAsset.asset as T : null;
+    }
+
+    public getFullPath(path: string, bundleName?: string): string {
+        return `${bundleName || 'resources'}:${path}`;
+    }
+
+    /**
+     * 加载资源
+     * @param path 资源路径
+     * @param type 资源类型 (cc.Prefab, cc.Texture2D, etc.)
+     * @param bundleName 如果资源在某个Bundle中，传入Bundle名称
+     * @param onProgress 加载进度回调 (progress: number) => void
+     * @returns Promise 返回加载的资源
+     */
+    public async loadAsset<T extends Asset>(
+        path: string,
+        type: typeof Asset,
+        bundleName?: string,
+        onProgress?: (progress: number) => void
+    ): Promise<T> {
+        const key = `${bundleName || 'resources'}:${path}`;
+        const now = Date.now();
+
+        if (this._loadedAssets.has(key)) {
+            const cachedAsset = this._loadedAssets.get(key)!;
+            cachedAsset.refCount++;
+            cachedAsset.lastAccessed = now; // 更新最近访问时间
+            return cachedAsset.asset as T;
         }
-        this.loadedResDirMap.set(path, ++refNum);
-        let self = this;
-        await new Promise((callback) => {
-            let array = path.split("/");
-            let assetType: typeof Asset = null;
-            switch (array[0]) {
-                case "Prefab":
-                    assetType = Prefab;
-                    break;
-                case "Texture":
-                    if (path.indexOf("Atlas") != -1)
-                        assetType = SpriteAtlas;
-                    else
-                        assetType = SpriteFrame;
-                    break;
-                case "Spine":
-                    assetType = sp.SkeletonData;
-                    break;
-                case "Json":
-                    assetType = JsonAsset;
-                    break;
-                default:
-                    // GFM.LogMgr.log(" load RES  noTYPE  = " + path);
-                    break;
+
+        return new Promise<T>((resolve, reject) => {
+            const bundle = bundleName
+                ? this._loadedBundles.get(bundleName)
+                : resources;
+
+            if (!bundle) {
+                reject(`loadAsset Bundle ${bundleName} not loaded.`);
+                return;
             }
-            if (assetType != null) {
-                resources.loadDir(path, assetType, (finish, total, item) => {
-                    progressCallback && progressCallback(finish / total);
-                }, (err, assets) => {
-                    if (assetType == SpriteFrame) {
-                        let paths = [];
-                        assets.forEach(asset => {
-                            paths.push(asset.name);
-                        });
-                        self.loadedSpriteFrames.set(path, paths);
+
+            bundle.load(
+                path,
+                type,
+                (finish, total) => onProgress?.(finish / total),
+                (err, asset) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        this._loadedAssets.set(key, { asset, refCount: 1, lastAccessed: now });
+                        resolve(asset as T);
                     }
-                    callback(err);
-                });
-                // GFM.LogMgr.log(`AssetManager loadDir: ${path}  type =  ${array[0]}`);
-            }
-            else {
-                resources.loadDir(path, (finish, total, item) => {
-                    progressCallback && progressCallback(finish / total);
-                }, callback);
-            }
+                }
+            );
+        });
+    }
+
+    private _releaseAssetAndReduce(key: string, asset: ICachedAsset) {
+        let now = Date.now();
+        asset.refCount--;
+        asset.lastAccessed = now;
+        this._releaseAsset(key, asset, now);
+    }
+
+    private _releaseAsset(key: string, asset: ICachedAsset, now: number = Date.now()) {
+        if (asset.refCount <= 0 && (this._isReleaseImmediately || now - asset.lastAccessed > this._expirationTime)) {
+            assetManager.releaseAsset(asset.asset);
+            this._loadedAssets.delete(key);
+            console.log(`Released asset: ${key}`);
+        }
+    }
+
+    /**
+     * 清理未使用的资源
+     * @param expirationTime 未使用资源的过期时间（毫秒） 默认30秒
+     */
+    public clearUnusedAssets() {
+        const now = Date.now();
+        for (const [key, cachedAsset] of this._loadedAssets.entries()) {
+            this._releaseAsset(key, cachedAsset, now);
+        }
+    }
+
+    /**
+     * 加载远程资源
+     * @param url 远程资源的 URL
+     * @param type 资源类型 (cc.Texture2D, cc.AudioClip, etc.)
+     * @param useCache 是否使用本地缓存
+     * @param onProgress 加载进度回调 (progress: number) => void
+     * @returns Promise 返回加载的资源
+     */
+    public async loadRemoteAsset<T extends Asset>(
+        url: string,
+        type: typeof Asset,
+        useCache: boolean = true,
+    ): Promise<T> {
+        const key = `remote:${url}`;
+        if (this._loadedAssets.has(key)) {
+            const cachedAsset = this._loadedAssets.get(key)!;
+            cachedAsset.refCount++;
+            cachedAsset.lastAccessed = Date.now();
+            return cachedAsset.asset as T;
+        }
+
+        return new Promise<T>((resolve, reject) => {
+            assetManager.loadRemote<T>(
+                url,
+                { cacheEnabled: useCache },
+                (err, asset) => {
+                    if (err) {
+                        reject(err);
+                    } else {
+                        this._loadedAssets.set(key, {
+                            asset,
+                            refCount: 1,
+                            lastAccessed: Date.now(),
+                        });
+                        resolve(asset);
+                    }
+                }
+            );
         });
     }
 
     /**
-     * 释放目录数组
-     *
-     * @param paths
-     * @memberof AssetManager
+     * 释放资源
+     * @param path 资源路径
+     * @param bundleName 如果资源在某个Bundle中，传入Bundle名称
      */
-    public releaseDirs(paths: string[]): void {
-        paths.forEach((path) => this.releaseDir(path));
+    public releaseAsset(path: string, bundleName?: string) {
+        const key = `${bundleName || 'resources'}:${path}`;
+        const cachedAsset = this._loadedAssets.get(key);
+        if (cachedAsset) {
+            this._releaseAssetAndReduce(key, cachedAsset);
+        }
     }
 
     /**
-      * 释放单个目录
-      *
-      * @param path
-      * @returns {*}
-      * @memberof AssetManager
-      */
-    public releaseDir(path: string): void {
-        let refNum = this.loadedResDirMap.get(path);
-        if (refNum === null && refNum === undefined) {
-            return;
+     * 释放所有资源
+     */
+    public releaseAllAssets() {
+        for (const [key, { asset }] of this._loadedAssets.entries()) {
+            assetManager.releaseAsset(asset);
+            console.log(`Released asset: ${key}`);
         }
-        this.loadedResDirMap.set(path, --refNum);
-        if (refNum > 0) {
-            return;
-        }
+        this._loadedAssets.clear();
+    }
 
-        let paths = this.loadedSpriteFrames.get(path);
-        if (paths) {
-            paths.forEach(_path => {
-                let aa = path + "/" + _path;
-                let res = resources.get<SpriteFrame>(aa, SpriteFrame);
-                if (res) {
-                    assetManager.releaseAsset(res);
-                }
-            });
-            this.loadedSpriteFrames.delete(path);
-        }
-        else {
-            let res = resources.get(path);
-            if (res) {
-                assetManager.releaseAsset(res);
+    /**
+     * 释放资源管理器
+     */
+    public release() {
+        this.releaseAllAssets();
+    }
+
+    /**
+     * 加载文件夹(根据文件夹关键字区分类型 参照assetTypeMap)
+     * @param dir 文件夹路径 
+     * @param bundleName bundle包名称，默认resources
+     * @param onProgress 进度回调
+     * @returns Promise 返回加载的资源列表(数组)
+     */
+    public async loadDir<T extends Asset>(dir: string, bundleName?: string, onProgress?: (progress: number) => void
+    ): Promise<T[]> {
+        const now = Date.now();
+        let bundle = bundleName ? this._loadedBundles.get(bundleName) : resources;
+
+        if (!bundle) {
+            GFM.LogMgr.warn(`Bundle ${bundleName} not loaded, loading...`);
+            await this.loadBundle(bundleName);
+            bundle = this._loadedBundles.get(bundleName);
+            if (!bundle) {
+                throw new Error(`loadDir Bundle ${bundleName} not loaded.`);
             }
         }
+        return new Promise<T[]>((resolve, reject) => {
+            let assetType: typeof Asset = Asset;
+            for (const key in assetTypeMap) {
+                if (dir.indexOf(key) >= 0) {
+                    assetType = assetTypeMap[key];
+                    break;
+                }
+            }
+            bundle.loadDir(dir, assetType, (finish, total) => {
+                onProgress?.(finish / total); // 触发加载进度回调
+            }, (err, assets) => {
+                if (err) {
+                    reject(err);
+                } else {
+                    const loadedAssets: T[] = [];
+                    for (const asset of assets) {
+                        GFM.LogMgr.log(`Loaded asset: ${dir}/${asset.name}  type: ${asset.constructor.name}`);
+                        const key = `${bundleName || 'resources'}:${dir}/${asset.name}`;
+                        if (!this._loadedAssets.has(key)) {
+                            this._loadedAssets.set(key, {
+                                asset,
+                                refCount: 1,
+                                lastAccessed: now,
+                            });
+                        } else {
+                            const cachedAsset = this._loadedAssets.get(key)!;
+                            cachedAsset.refCount++;
+                            cachedAsset.lastAccessed = now;
+                        }
+                        loadedAssets.push(asset as T);
+                    }
+                    resolve(loadedAssets);
+                }
+            });
+        });
+    }
 
-        // GFM.LogMgr.log(`AssetManager releaseDir: ${path}`);
+    /**
+     * 释放制定资源目录
+     * @param dir 资源路径
+     * @param bundleName bundle包名称，默认resources
+     */
+    public releaseDir(dir: string, bundleName?: string) {
+        const bundleKey = bundleName || "resources"; // 默认使用 cc.resources
+        for (const [key, cachedAsset] of this._loadedAssets.entries()) {
+            // 检查资源是否属于指定目录
+            if (key.startsWith(`${bundleKey}:${dir}`)) {
+                this._releaseAssetAndReduce(key, cachedAsset);
+            }
+        }
+    }
+
+    /**
+     * 加载多个目录
+     * @param dirs 资源路径数组
+     * @param bundleName bundle包名称，默认resources
+     * @param onProgress 进度回调
+     * @returns 
+     */
+    public async loadDirs(dirs: string[], bundleName?: string, onProgress?: (progress: number) => void) {
+        if (!dirs || dirs.length === 0) return;
+        let index = 0;
+        const total = dirs.length;
+        const promises = dirs.map(dir => this.loadDir(dir, bundleName, (progress) => {
+            if (progress >= 1) {
+                index++;
+                onProgress?.(index / total);
+            }
+        }));
+        return Promise.all(promises);
+    }
+
+    public releaseDirs(dirs: string[], bundleName?: string) {
+        dirs.forEach(dir => this.releaseDir(dir, bundleName));
     }
 
     /**
@@ -164,81 +323,120 @@ export default class ResManager {
      * @returns {*}
      * @memberof AssetManager
      */
-    public isDirLoaded(path: string): boolean {
-        return this.loadedResDirMap.get(path) > 0;
+    public isDirLoaded(path: string, bundleName?: string): boolean {
+        const key = `${bundleName || 'resources'}:${path}`;
+        return this._loadedAssets.get(key) != null;
     }
 
     public dumpDirMap() {
         const data = [];
-        this.loadedResDirMap.forEach((v, k) => {
-            v !== 0 && data.push({ dir: k, refNum: v });
+        this._loadedAssets.forEach((v, k) => {
+            data.push({ dir: k, type: v.asset.constructor.name, refNum: v.refCount });
         });
-        console.table(data);
+
+        GFM.LogMgr.dump(data);
     }
 
-    // ============================ 预加载spine ===============================
-    public preloadSpine(url: string, callback?: Function) {
-        log("preloadSpine " + url + " start")
-        console.time("加载spine资源 : " + url);
-        return new Promise((reovle, reject) => {
-            resources.load(url, sp.SkeletonData, (error, skeletonData: sp.SkeletonData) => {
-                if (error) {
-                    reject(error);
+    // ============================ Bundle相关 ===============================
+    /**
+     * 加载 Bundle
+     * @param bundleName Bundle 名称
+     * @returns Promise 返回加载的 Bundle
+     */
+    public async loadBundle(bundleName: string): Promise<AssetManager.Bundle> {
+        if (this._loadedBundles.has(bundleName)) {
+            return this._loadedBundles.get(bundleName)!;
+        }
+
+        return new Promise((resolve, reject) => {
+            assetManager.loadBundle(bundleName, (err, bundle) => {
+                if (err) {
+                    reject(err);
                 } else {
-                    reovle(skeletonData);
-                    if (!this.spineCache[url] && skeletonData) {
-                        this.spineCache[url] = skeletonData;
-                        skeletonData.addRef()
-                    }
-                    console.timeEnd("加载spine资源 : " + url)
-                    if (callback) {
-                        callback();
-                    }
+                    this._loadedBundles.set(bundleName, bundle);
+                    resolve(bundle);
                 }
             });
         });
     }
 
-    //释放Spine
-    public clearSpine(url?: string) {
-        if (url && this.spineCache[url]) {
-            this.spineCache[url].decRef()
-            this.spineCache[url] = null
-        } else {
-            for (const key in this.spineCache) {
-                this.spineCache[key].decRef()
-                this.spineCache[key] = null
-            }
+    /**
+     * 卸载 Bundle
+     * @param bundleName Bundle 名称
+     */
+    public unloadBundle(bundleName: string) {
+        const bundle = this._loadedBundles.get(bundleName);
+        if (bundle) {
+            bundle.releaseAll();
+            this._loadedBundles.delete(bundleName);
+            console.log(`Unloaded bundle: ${bundleName}`);
         }
     }
 
+    /**
+     * 卸载所有 Bundle
+     */
+    public unloadAllBundles() {
+        for (const bundleName of this._loadedBundles.keys()) {
+            this.unloadBundle(bundleName);
+        }
+    }
+
+
+    // ============================ 预加载spine ===============================
+    public preloadSpine(url: string, callback?: Function) {
+        log("preloadSpine " + url + " start")
+        console.time("加载spine资源 : " + url);
+
+        this.loadAsset<sp.SkeletonData>(url, sp.SkeletonData).then((skeletonData) => {
+            if (callback) {
+                callback();
+            }
+            console.timeEnd("加载spine资源 : " + url)
+        })
+    }
+
     public showSpine(url: string, spine: sp.Skeleton, callback?: Function) {
-        let callFunc = () => {
-            log("showSpine url:" + url)
+        this.loadAsset<sp.SkeletonData>(url, sp.SkeletonData).then((skeletonData) => {
             if (isValid(spine)) {
-                spine.skeletonData = this.spineCache[url];
+                spine.skeletonData = skeletonData;
             }
             if (callback) {
                 callback()
             }
-        }
-        if (this.spineCache[url]) {
-            callFunc()
-        } else {
-            this.preloadSpine(url, () => {
-                if (this.spineCache[url]) {
-                    callFunc()
-                }
-            })
-        }
+        });
     }
 
     public async showSpineSync(url: string, spine: sp.Skeleton) {
-        if (this.spineCache[url] == undefined) {
-            await this.preloadSpine(url);
+        let skeletonData = await this.loadAsset<sp.SkeletonData>(url, sp.SkeletonData);
+        if (isValid(spine)) {
+            spine.skeletonData = skeletonData;
         }
-        if (this.spineCache[url] && isValid(spine)) {
-            spine.skeletonData = this.spineCache[url];
+    }
+
+    // ============================ SpriteFrame ===============================
+    public getSpriteFrame(url: string): SpriteFrame {
+        let spriteFrame = this.get<SpriteFrame>(url);
+        if (spriteFrame) {
+            return spriteFrame;
         }
+        else {
+            let spriteFrameName = path.basename(url);
+            let spriteAtlasPath = path.dirname(url);
+            let spriteAtlas = this.get<SpriteAtlas>(spriteAtlasPath);
+            if (spriteAtlas) {
+                let frame = spriteAtlas.getSpriteFrame(spriteFrameName);
+                if (frame) {
+                    return frame;
+                }
+                else {
+                    GFM.LogMgr.error("changeSpriteFrame error, spriteFrame is null, url:", url);
+                }
+            }
+            else {
+                GFM.LogMgr.error("changeSpriteFrame error, spriteAtlas is null, url:", url);
+            }
+        }
+        return null;
     }
 }

@@ -138,14 +138,14 @@ export class Main extends Component {
 
     //#region 前后台切换
     private eventHide() {
-        console.log("=====EVENT_HIDE");
+        GFM.LogMgr.log("=====EVENT_HIDE");
         // GFM.AudioMgr.pauseAll();
         // Game.NotifyManager.emit(ENotifyType.EVENT_HIDE);
 
     }
 
     private eventShow() {
-        console.log("=====EVENT_SHOW");
+        GFM.LogMgr.log("=====EVENT_SHOW");
         // Game.AudioManager.resumeAll();
         // // 重新获取auth
         // NativeCallFuncs.getAuth();
@@ -162,7 +162,7 @@ export class Main extends Component {
     }
 
     private resize() {
-        console.log("resize");
+        GFM.LogMgr.log("resize");
         let cvs = find('Canvas').getComponent(Canvas);
         let fit = ResolutionPolicy.FIXED_HEIGHT;
         //保存原始设计分辨率，供屏幕大小变化时使用
@@ -175,7 +175,7 @@ export class Main extends Component {
         let rh = s.height;
         let finalW = rw;
         let finalH = rh;
-        console.log("resize frameWith = " + rw + " frameHeight = " + rh);
+        GFM.LogMgr.log("resize frameWith = " + rw + " frameHeight = " + rh);
         if ((rw / rh) > (dr.width / dr.height)) {
             //!#zh: 是否优先将设计分辨率高度撑满视图高度。 */
             fit = ResolutionPolicy.FIXED_HEIGHT;
@@ -197,7 +197,7 @@ export class Main extends Component {
         cvs.node.getComponent(UITransform).width = finalW;
         cvs.node.getComponent(UITransform).height = finalH;
         view.emit('resize');
-        console.log("resize finalW = " + finalW + " finalH = " + finalH);
+        GFM.LogMgr.log("resize finalW = " + finalW + " finalH = " + finalH);
         // if (Game.NotifyManager) {
         //     Game.NotifyManager.emit(ENotifyType.WINDOW_RESIZE);
         // }

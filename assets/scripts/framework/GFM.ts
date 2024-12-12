@@ -7,6 +7,7 @@ import ResManager from "./manager/ResManager";
 import SceneManager from "./manager/SceneManager";
 import UIManager from "./manager/UIManager";
 import HttpClient, { HTTP_CONTENT_TYPE } from "./newwork/HttpClient";
+import { GameUtils } from "./util/GameUtils";
 
 /**
  * 游戏统一调度 Game Framework Module
@@ -71,6 +72,10 @@ export class GFM {
         return this.getInstance(LogManager);
     }
 
+    public get UtilsMgr(): GameUtils {
+        return GameUtils;
+    }
+
     // public get HeartBeatManager(): HeartBeatManager {
     //   return this.getInstance(HeartBeatManager);
     // }
@@ -103,7 +108,7 @@ export class GFM {
 
     // 初始启动
     async setup() {
-        await this.ResMgr.setup();
+        await this.ResMgr.setup(-1);
         await this.DataMgr.setup();
         await this.AudioMgr.setup();
         await this.HttpMgr.setup();
@@ -111,6 +116,7 @@ export class GFM {
         await this.LogMgr.setup();
         await this.SceneMgr.setup();
         await this.UIMgr.setup();
+
     }
 
     public showWaiting(reason: string) {

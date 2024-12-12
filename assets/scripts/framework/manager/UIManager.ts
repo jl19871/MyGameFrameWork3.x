@@ -2,11 +2,9 @@
  * @Author: JL
  * @Date: 2024-11-12 16:15:51
  */
-import { _decorator, Component, instantiate, Node, Prefab, resources, Vec3 } from 'cc';
+import { _decorator, instantiate, Node, Prefab, Vec3 } from 'cc';
 import { BaseUI } from '../base/BaseUI';
 import { EEventEnum } from '../data/enums/EventEnums';
-const { ccclass, property } = _decorator;
-
 /**
  * UI界面名称
  *
@@ -32,6 +30,7 @@ export interface IViewData {
     resDirs: string[];
     // 创建界面所需的 prefab
     prefabUrl: string;
+    bundleName?: string;
 }
 
 interface IGameViewCfg {
@@ -133,12 +132,13 @@ export default class UIManager {
         GFM.showWaiting(`creatUI: ${viewData.viewName}`);
 
         try {
+            await GFM.ResMgr.loadAsset<Prefab>(viewData.prefabUrl, Prefab, viewData.bundleName);
             await GFM.ResMgr.loadDirs(viewData.resDirs);
         }
         catch (e) {
             console.error(e);
         }
-        const prefab = resources.get<Prefab>(viewData.prefabUrl, Prefab);
+        const prefab = GFM.ResMgr.getAsset<Prefab>(viewData.prefabUrl, viewData.bundleName);
         if (prefab == undefined) {
             console.error("UIManager createUI Error  not found prefab = " + viewData.prefabUrl);
             return;

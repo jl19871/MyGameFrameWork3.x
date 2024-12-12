@@ -2,7 +2,7 @@
  * @Author: JL
  * @Date: 2021-12-31 18:00:21
  */
-import { Node } from "cc";
+import { Asset, Node } from "cc";
 import { resources } from "cc";
 import { Prefab } from "cc";
 import { instantiate } from "cc";
@@ -26,6 +26,11 @@ export enum ESceneName {
 
 // ========================================================================================
 
+export interface IResData {
+    url: string;
+    bundleName?: string;
+}
+
 /**
  * 场景数据结构
  *
@@ -36,9 +41,10 @@ export interface ISceneData {
     // scene 名字
     sceneName: ESceneName;
     // 除通用资源目录外，引用的资源目录，没有可不填
-    resDirs: string[];
+    resDirs: IResData[];
     // 创建界面所需的 prefab
     prefabUrl: string;
+    bundleName?: string;
 }
 // ========================================================================================
 /**
@@ -103,13 +109,23 @@ export default class SceneManager {
         const needLoadResDirs = this.difference(sceneData.resDirs, currentSceneResDirs);
         try {
             GFM.showWaiting(`gotoScene: ${sceneData.sceneName}`);
-            // 加载资源
-            await GFM.ResMgr.loadDirs(needLoadResDirs, percent => {
-                let number = Number(percent * 100).toFixed(0);
-                GFM.EventMgr.emit(EEventEnum.LOADING_PROGRESS, { tid: `TID_LOADING_1,${number}`, pro: percent });
-            });
+            // 加载prefab
+            await GFM.ResMgr.loadAsset<Prefab>(sceneData.prefabUrl, Prefab, sceneData.bundleName);
+            // 加载资源文件夹
+            let index = 0;
+            const total = needLoadResDirs.length;
+            const promises = needLoadResDirs.map(resData => GFM.ResMgr.loadDir(resData.url, resData.bundleName, (progress) => {
+                if (progress >= 1) {
+                    index++;
+                    let percent = index / total;
+                    let number = Number(percent * 100).toFixed(0);
+                    GFM.EventMgr.emit(EEventEnum.LOADING_PROGRESS, { tid: `TID_LOADING_1,${number}`, pro: percent });
+                }
+            }));
+            await Promise.all(promises);
+
             // 创建场景
-            const prefab = resources.get<Prefab>(sceneData.prefabUrl, Prefab);
+            const prefab = GFM.ResMgr.getAsset<Prefab>(sceneData.prefabUrl, sceneData.bundleName);
             const node = instantiate(prefab);
             node.name = path.basename(sceneData.prefabUrl);
             node.position = Vec3.ZERO;
@@ -130,7 +146,9 @@ export default class SceneManager {
                 this.currentScene.didExit();
                 this.currentScene.node.destroy();
             }
-            GFM.ResMgr.releaseDirs(needReleaseResDirs);
+            needReleaseResDirs.forEach((resData) => {
+                GFM.ResMgr.releaseDir(resData.url, resData.bundleName);
+            });
             this.currentSceneData = sceneData;
             this.currentScene = newScene;
 
@@ -140,6 +158,7 @@ export default class SceneManager {
             // GFM.AssetManager.dumpDirMap();
             this.goingSceneData = null;
             // GFM.LogMgr.log('场景切换结束');
+            GFM.ResMgr.clearUnusedAssets();
             GFM.EventMgr.emit(EEventEnum.LOADING_HIDE);
             // 切换场景通知
             GFM.EventMgr.emit(EEventEnum.SWITCH_SCENE_END);
@@ -154,7 +173,9 @@ export default class SceneManager {
                 await this.prepareScene({
                     sceneName: sceneName,
                     resDirs: [
-                        "Prefab/Scene/LoginScene"
+                        { url: "res/sprite", bundleName: "test" },
+                        { url: "res/atlas", bundleName: "test" },
+                        { url: "res/spine", bundleName: "test" },
                     ],
                     prefabUrl: "Prefab/Scene/LoginScene",
                 }, params);
@@ -193,10 +214,10 @@ export default class SceneManager {
         return this.goingSceneData != null;
     }
 
-    private difference(a: string[], b: string[]): string[] {
-        const c: string[] = [];
+    private difference(a: IResData[], b: IResData[]): IResData[] {
+        const c: IResData[] = [];
         a.forEach((o) => {
-            if (b.findIndex((o1) => o1 === o) === -1) {
+            if (b.findIndex((o1) => o1.url === o.url && o1.bundleName === o.bundleName) === -1) {
                 c.push(o);
             }
         });

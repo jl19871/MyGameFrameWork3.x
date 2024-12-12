@@ -53,14 +53,12 @@ export default class LangModel extends IDataModel {
      * @memberof LangModel
      */
     private async loadLanguageDir(lang: string = this._curLang) {
-        await GFM.ResMgr.loadDir(`Lang/${lang}`, percent => {
-            let number = Number(percent * 100).toFixed(0);
-            GFM.EventMgr.emit(EEventEnum.LOADING_PROGRESS, { tid: `TID_LOADING_1,${number}`, pro: percent });
-        });
+        // 读取本地多语言图片
 
+        // 读取本地语言表
         GFM.LogMgr.log("读取本地语言表");
         const langPath = `Lang/${lang}/StringList`;
-        const langData = resources.get<JsonAsset>(langPath, JsonAsset);
+        const langData = await GFM.ResMgr.loadAsset<JsonAsset>(langPath, JsonAsset);
         if (langData) {
             this.langJson = langData.json;
         }

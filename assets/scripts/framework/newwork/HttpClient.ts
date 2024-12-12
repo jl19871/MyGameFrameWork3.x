@@ -18,7 +18,7 @@ const HTTP_CONTENT_TYPE_NAME = [
 
 export default class HttpClient {
     public async setup() {
-        console.log('HttpClient setup');
+        GFM.LogMgr.log('HttpClient setup');
     }
 
     public async get(url: string, params?: Record<string, unknown>) {
