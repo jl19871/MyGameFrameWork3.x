@@ -1,6 +1,6 @@
 # 项目简介
 
-一份空白的扩展。
+创建UI的script模版，对应的prefab请放在resources/Prefab/UI 下。
 
 ## 安装
 
