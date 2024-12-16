@@ -3,10 +3,10 @@
  * @Date: 2024-12-11 17:44:40
  */
 
-const fs = require('fs');
-const path = require('path');
-// const configUtil = require('./config-util');
+import configUtil from "./config-util";
 
+const fs = require('fs-extra');
+const path = require('path');
 
 class UITemplate {
     outputRelativePath: string = '';
@@ -18,9 +18,9 @@ class UITemplate {
         this.init();
     }
 
-    async init() {
-        this.outputRelativePath = "assets/scripts/ui/view";
-        this.outputFullPath = path.join(Editor.Project.path, this.outputRelativePath);
+    init() {
+
+
         this.templatePath = Editor.Utils.Path.join(Editor.Project.path, 'extensions/create-ui-template/source/core/ui-template.txt');
     }
 
@@ -43,6 +43,10 @@ class UITemplate {
     }
 
     async dealPrefab(assetInfo: any) {
+        let data = await configUtil.initConfigSync();
+        this.outputRelativePath = data.uiOutputPath;
+        this.outputFullPath = path.join(Editor.Project.path, this.outputRelativePath);
+
         let url = assetInfo.url;
         if (!fs.existsSync(this.outputFullPath)) {
             fs.mkdirSync(this.outputFullPath);

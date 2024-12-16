@@ -14,16 +14,25 @@
     "main": "./dist/main.js",
     "devDependencies": {
         "@cocos/creator-types": "^3.8.4",
+        "@types/electron": "^1.6.12",
         "@types/node": "^18.17.1",
         "typescript": "^4.3.4"
     },
+    "panels": {
+        "default": {
+            "main": "./dist/panels/index.js",
+            "type": "dockable",
+            "title": "create-ui-template",
+            "size": {
+                "min-width": 800,
+                "min-height": 200,
+                "width": 800,
+                "height": 200
+            }
+        }
+    },
     "contributions": {
         "menu": [{
-                "path": "i18n:create-ui-template",
-                "label": "i18n:create-ui-template.show_log",
-                "message": "show-log"
-            },
-            {
                 "path": "i18n:create-ui-template",
                 "label": "i18n:create-ui-template.create-template",
                 "message": "create-template"
@@ -33,14 +42,8 @@
                 "label": "i18n:create-ui-template.settings",
                 "message": "settings"
             }
-
         ],
         "messages": {
-            "show-log": {
-                "methods": [
-                    "showLog"
-                ]
-            },
             "create-template": {
                 "methods": [
                     "createTemplate"
@@ -49,6 +52,11 @@
             "settings": {
                 "methods": [
                     "settings"
+                ]
+            },
+            "chooseDirectory": {
+                "methods": [
+                    "chooseDirectory"
                 ]
             }
         }

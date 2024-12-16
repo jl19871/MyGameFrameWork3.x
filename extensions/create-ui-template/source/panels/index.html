@@ -1,0 +1,17 @@
+<!--
+ * @Author: JL
+ * @Date: 2023-08-12 09:32:38
+-->
+<div class="layout vertical fit">
+    <h1 id="app"></h1>
+    <ui-prop name="UI逻辑脚本输出路径:" tooltip="">
+        <div class="flex-1 layout horizontal center">
+            <ui-input id="inputField" placeholder="" disabled class="flex-1" v-value="uiOutputPath">
+            </ui-input>
+            <ui-button id="selectBtn" class="blue" v-on:confirm="onBtnSelectUIPath">选择目录</ui-button>
+            <ui-button id="openBtn" v-show="this.uiOutputPath!==null && this.uiOutputPath.length>0" v-on:confirm="onBtnOpenUIPath">
+                打开目录
+            </ui-button>
+        </div>
+    </ui-prop>
+</div>

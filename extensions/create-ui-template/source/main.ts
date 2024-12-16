@@ -1,7 +1,10 @@
-import { log } from "console";
-
-
+/*
+ * @Author: JL
+ * @Date: 2024-12-11 17:06:53
+ */
 import uiTemplate from './core/UITemplate';
+import { dialog } from 'electron';
+import path from 'path';
 /**
  * @en Registration method for the main process of Extension
  * @zh 为扩展的主进程的注册方法
@@ -42,6 +45,26 @@ export const methods: { [key: string]: (...any: any) => any } = {
     settings() {
         console.log('Settings');
         Editor.Panel.open('create-ui-template');
+    },
+
+    async chooseDirectory(_path: string) {
+        const currentDir = path.join(Editor.Project.path, _path);
+        console.log('当前目录路径:', currentDir);
+
+        let result = await dialog.showOpenDialogSync({
+            title: '选择UI输出路径',
+            defaultPath: currentDir, // 设置默认路径
+            properties: ['openDirectory'] // 与旧接口类似的目录选择属性
+        });
+
+        if (result) {
+            console.log('选择的目录:', result[0]);
+            let relativePath = path.relative(Editor.Project.path, result[0]);
+            return relativePath; // 返回选择的目录路径
+        } else {
+            console.log('用户取消了选择');
+            return null;
+        }
     }
 };
 

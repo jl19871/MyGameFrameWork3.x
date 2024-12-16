@@ -1,1 +1,10 @@
-{}
+{
+  "disable-packages": {
+    "/Volumes/Work/MyWorkspace/Cocos-Workspace/MyGameFrameWork3": {
+      "x/extensions/html-template": {
+        "name": "html-template",
+        "time": 1734335593807
+      }
+    }
+  }
+}
