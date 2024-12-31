@@ -40,7 +40,7 @@ export default class ResManager {
      * @param path 资源路径 结构为 bundleName:dir/assetName
      * @returns 
      */
-    public get<T extends Asset>(path: string): T {
+    public get<T extends Asset>(path: string, warn = true): T {
         let url = path;
         let index = url.indexOf(":");
         if (index < 0) {
@@ -51,7 +51,7 @@ export default class ResManager {
             return asset.asset as T;
         }
         else {
-            GFM.LogMgr.warn(`AssetManager.get: ${url} not loaded.  path = ${path}`);
+            if (warn) GFM.LogMgr.warn(`AssetManager.get: ${url} not loaded.  path = ${path}`);
             return null;
         }
     }
@@ -299,21 +299,49 @@ export default class ResManager {
      * @param onProgress 进度回调
      * @returns 
      */
-    public async loadDirs(dirs: string[], bundleName?: string, onProgress?: (progress: number) => void) {
+    public async loadDirs(dirs: string[], bundleName?: string, onProgress?: (progress: number) => void): Promise<any> {
         if (!dirs || dirs.length === 0) return;
         let index = 0;
         const total = dirs.length;
-        const promises = dirs.map(dir => this.loadDir(dir, bundleName, (progress) => {
+        let promises = [];
+        dirs.map(dir => promises.push(this.loadDir(dir, bundleName, (progress) => {
             if (progress >= 1) {
                 index++;
                 onProgress?.(index / total);
             }
-        }));
+        })));
         return Promise.all(promises);
     }
 
     public releaseDirs(dirs: string[], bundleName?: string) {
         dirs.forEach(dir => this.releaseDir(dir, bundleName));
+    }
+
+    public loadDirsWithBundleName(dirs: string[], onProgress?: (progress: number) => void): Promise<any> {
+        if (!dirs || dirs.length === 0) return;
+        let index = 0;
+        const total = dirs.length;
+        let promises = [];
+        dirs.map(dir => {
+            let bundleName = dir.split(":")[0];
+            dir = dir.split(":")[1];
+            promises.push(this.loadDir(dir, bundleName, (progress) => {
+                if (progress >= 1) {
+                    index++;
+                    onProgress?.(index / total);
+                }
+            }));
+        });
+        return Promise.all(promises);
+    }
+
+
+    public releaseDirsWithBundleName(dirs: string[]) {
+        dirs.forEach(dir => {
+            let bundleName = dir.split(":")[0];
+            dir = dir.split(":")[1];
+            this.releaseDir(dir, bundleName);
+        });
     }
 
     /**
@@ -416,14 +444,14 @@ export default class ResManager {
 
     // ============================ SpriteFrame ===============================
     public getSpriteFrame(url: string): SpriteFrame {
-        let spriteFrame = this.get<SpriteFrame>(url);
+        let spriteFrame = this.get<SpriteFrame>(url, false);
         if (spriteFrame) {
             return spriteFrame;
         }
         else {
             let spriteFrameName = path.basename(url);
             let spriteAtlasPath = path.dirname(url);
-            let spriteAtlas = this.get<SpriteAtlas>(spriteAtlasPath);
+            let spriteAtlas = this.get<SpriteAtlas>(spriteAtlasPath, false);
             if (spriteAtlas) {
                 let frame = spriteAtlas.getSpriteFrame(spriteFrameName);
                 if (frame) {

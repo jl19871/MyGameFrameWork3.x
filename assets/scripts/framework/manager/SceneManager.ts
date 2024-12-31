@@ -146,6 +146,9 @@ export default class SceneManager {
                 this.currentScene.didExit();
                 this.currentScene.node.destroy();
             }
+            if (this.currentSceneData) {
+                GFM.ResMgr.releaseAsset(this.currentSceneData.prefabUrl, this.currentSceneData.bundleName);
+            }
             needReleaseResDirs.forEach((resData) => {
                 GFM.ResMgr.releaseDir(resData.url, resData.bundleName);
             });

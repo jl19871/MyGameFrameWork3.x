@@ -14,9 +14,10 @@ import { EEventEnum } from '../data/enums/EventEnums';
 export enum EViewName {
     UI_ConfirmBoard = "UI_ConfirmBoard",
     UI_Tips = "UI_Tips",
-    UI_Qipao = "UI_Qipao"
+    UI_Qipao = "UI_Qipao",
 }
 
+type ViewName = string;
 /**
 * popview 数据结构
 *
@@ -25,7 +26,7 @@ export enum EViewName {
 */
 export interface IViewData {
     // view 名字
-    viewName: EViewName;
+    viewName: ViewName;
     // 除通用资源目录外，引用的资源目录，没有可不填
     resDirs: string[];
     // 创建界面所需的 prefab
@@ -62,7 +63,7 @@ export default class UIManager {
 
     private uiRootNode: Node = null;
 
-    private viewDataMap: Map<EViewName, IGameViewCfg> = new Map();
+    private viewDataMap: Map<ViewName, IGameViewCfg> = new Map();
 
     private createdUIs: BaseUI[] = [];
 
@@ -95,6 +96,10 @@ export default class UIManager {
         this.viewDataMap.set(viewData.viewName, { viewData, viewClass });
     }
 
+    public unregisterUI(viewName: ViewName) {
+        this.viewDataMap.delete(viewName);
+    }
+
     /**
      * 
      * @param viewName UI名称
@@ -102,7 +107,7 @@ export default class UIManager {
      * @returns 
      */
 
-    public async openUI(viewName: EViewName, userData?: Record<string, unknown>) {
+    public async openUI(viewName: ViewName, userData?: Record<string, unknown>) {
         const viewCfg = this.viewDataMap.get(viewName);
         if (!viewCfg) {
             console.warn(`view: ${viewName} not regist`);
@@ -117,6 +122,16 @@ export default class UIManager {
         }
     }
 
+    public async openUIByData(viewData: IViewData, viewClass: any, userData?: Record<string, unknown>) {
+        if (!this.uiRootNode) {
+            console.error("uiRootNode is null");
+        }
+        const viewCfg: IGameViewCfg = { viewData, viewClass };
+        this.createQueue.push({ viewCfg, userData });
+        if (!this.isCreatingUI) {
+            await this.creatUI();
+        }
+    }
     /**
      * 异步创建队列中所有UI
      * @returns 
@@ -186,13 +201,14 @@ export default class UIManager {
             curTopView.onFocus();
             // GFM.LogMgr.log(`view: ${curTopView.getViewData().viewName} onFocus`);
         }
+        GFM.ResMgr.releaseAsset(viewData.prefabUrl, viewData.bundleName);
         GFM.ResMgr.releaseDirs(viewData.resDirs);
         if (this.createdUIs.length == 0) {
             GFM.EventMgr.emit(EEventEnum.UI_DESTORY_LASTONE);
         }
     }
 
-    public getUIByName(name: EViewName) {
+    public getUIByName(name: ViewName) {
         let ui = this.createdUIs.find((o) => o.name === name);
         return ui;
     }
