@@ -1,0 +1,14 @@
+syntax = "proto3";
+package packet;
+message Packet {
+  MsgNo msg_no = 1; // 消息编号
+  bytes data = 2; // 消息内容
+  int64 unix_milli = 3; // 发送消息的毫秒时间戳
+}
+enum MsgNo {
+  Def = 0;
+  MsgNo_HeartBeatB2C = 0x0000001A;
+  MsgNo_HeartBeatC2B = 0x0000001B;
+  // 扩展
+}
+

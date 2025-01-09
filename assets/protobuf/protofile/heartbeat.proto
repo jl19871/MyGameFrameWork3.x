@@ -1,0 +1,6 @@
+syntax = "proto3";
+package packet;
+
+message HeartBeatB2C {}
+
+message HeartBeatC2B {}

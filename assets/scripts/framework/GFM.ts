@@ -7,6 +7,7 @@ import ResManager from "./manager/ResManager";
 import SceneManager from "./manager/SceneManager";
 import UIManager from "./manager/UIManager";
 import HttpClient, { HTTP_CONTENT_TYPE } from "./newwork/HttpClient";
+import Network from "./newwork/NewWork";
 import { GameUtils } from "./util/GameUtils";
 
 /**
@@ -44,9 +45,9 @@ export class GFM {
     }
 
     // // /** 网络工具 */
-    // public get WebManager(): Network {
-    //   return GFM.getInstance(Network);
-    // }
+    public get SocketMgr(): Network {
+        return this.getInstance(Network);
+    }
 
     /** 数据模型管理器 */
     public get DataMgr(): DataManager {
