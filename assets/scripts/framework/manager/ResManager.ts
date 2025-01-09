@@ -32,7 +32,7 @@ export default class ResManager {
         this._loadedBundles = new Map();
         this._expirationTime = time;
         this._isReleaseImmediately = time <= 0;
-        GFM.LogMgr.log("AssetManager setup");
+        GFM.LogMgr.log("ResManager setup");
     }
 
     /**
@@ -51,7 +51,7 @@ export default class ResManager {
             return asset.asset as T;
         }
         else {
-            if (warn) GFM.LogMgr.warn(`AssetManager.get: ${url} not loaded.  path = ${path}`);
+            if (warn) GFM.LogMgr.warn(`ResManager.get: ${url} not loaded.  path = ${path}`);
             return null;
         }
     }
@@ -349,7 +349,6 @@ export default class ResManager {
      *
      * @param path
      * @returns {*}
-     * @memberof AssetManager
      */
     public isDirLoaded(path: string, bundleName?: string): boolean {
         const key = `${bundleName || 'resources'}:${path}`;
