@@ -102,7 +102,7 @@ export default class LogManager {
                 return result[index];
             }
             else {
-                return "unknown:";
+                return "";
             }
         } catch (e) {
             return "";
